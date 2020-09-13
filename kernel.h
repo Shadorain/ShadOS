@@ -32,7 +32,7 @@ enum VGA_COLOR {
     WHITE,
 };
 
-// Need buffer that points to a VGA, can also be called as VGA_BUFFER 
-UINT16 *TERMINAL_BUFFER;
+// Buffer that points to a VGA
+UINT16 *VGA_BUFFER;
 
 #endif
