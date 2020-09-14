@@ -1,5 +1,8 @@
 #include "kernel.h"
 #include "kbd.h"
+#include "chars.h"
+#include "types.h"
+#include "utils.h"
 
 // Video buffer array index
 UINT32 VGA_INDEX;
@@ -49,56 +52,10 @@ void INIT_VGA(UINT8 fg, UINT8 bg) {
     g_bg = bg;
 }
 
-// Increase VGA_INDEX by width of row (80)
-void print_newline() {
-    if(nl_index >= 55) {
-        nl_index = 0;
-        CLR_VGA_BUFFER(&VGA_BUFFER, g_fg, g_bg);
-    }
-    VGA_INDEX = 80*nl_index;
-    nl_index++;
-}
-
 // Assign ASCII char to video buffer
 void printc(char ch) {
     VGA_BUFFER[VGA_INDEX] = VGA_ENTRY(ch, g_fg, g_bg);
     VGA_INDEX++;
-}
-
-UINT32 strlen(const char* str) {
-    UINT32 length = 0;
-    while (str[length])
-        length++;
-    return length;
-}
-
-UINT32 digit_count(int num) {
-    UINT32 count = 0;
-    if(num==0)
-        return 1;
-    while(num > 0) {
-        count++;
-        num = num/10;
-    }
-    return count;
-}
-
-void itoa(int num, char *number) {
-    int dgcount = digit_count(num);
-    int i = dgcount - 1;
-    char x;
-    if(num==0 && dgcount==1) {
-        number[0] = '0';
-        number[1] = '\0';
-    } else { 
-        while(num != 0) {
-            x = num % 10;
-            number[i] = x + '0';
-            i--;
-            num = num / 10;
-        }
-        number[dgcount] = '\0';
-    }
 }
 
 // Print string by using printc
@@ -117,6 +74,64 @@ void printi(int num) {
     printf(str_num);
 }
 
+// Increase VGA_INDEX by width of row (80)
+void print_newline() {
+    if(nl_index >= 55) {
+        nl_index = 0;
+        CLR_VGA_BUFFER(&VGA_BUFFER, g_fg, g_bg);
+    }
+    VGA_INDEX = 80*nl_index;
+    nl_index++;
+}
+
+UINT8 inb(UINT16 port) {
+    UINT8 ret;
+    asm volatile("inb %1, %0" : "=a"(ret) : "d"(port));
+    return ret;
+}
+
+void outb(UINT16 port, UINT8 data) {
+    asm volatile("outb %0, %1" : "=a"(data) : "d"(port));
+}
+
+char get_input_keycode() {
+    char ch = 0;
+    while ((ch = inb(KBD_PORT)) != 0)
+        if(ch > 0)
+            return ch;
+    return ch;
+}
+
+// Keeps CPU busy so that io port wont be proced by CPU, using looping counter
+void wait_for_io(UINT32 timer_count) {
+    while(1) {
+        asm volatile("nop");
+        timer_count--;
+        if (timer_count <= 0) 
+            break;
+    }
+}
+
+// Sleep timer
+void sleep(UINT32 timer_count) {
+    wait_for_io(timer_count);
+}
+
+void test_input() {
+    char ch = 0;
+    char keycode = 0;
+    do {
+        keycode = get_input_keycode();
+        if(keycode == KEY_ENTER)
+            print_newline();
+        else {
+            ch = get_ascii_char(keycode);
+            printc(ch);
+        }
+        sleep(0x02FFFFFF);
+    } while (ch > 0);
+}
+
 // Main function which is called in boot.S
 void KERNEL_MAIN() {
     // Init VGA with fg & bg
@@ -125,7 +140,7 @@ void KERNEL_MAIN() {
     // Can print strings, chars, and ints with new functions
     printf("Hello Shadoknight!");
     print_newline();
-    printi(1337);
+    printf("Hit any key ...");
     print_newline();
-    printf("Cya!");
+    test_input();
 }

@@ -1,10 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-// Define 8,16,32 bit unsigned type
-typedef unsigned char UINT8;
-typedef unsigned short UINT16;
-typedef unsigned int UINT32;
+#include "types.h"
 
 // Define a VGA address
 #define VGA_ADDRESS 0xB8000
@@ -34,5 +31,7 @@ enum VGA_COLOR {
 
 // Buffer that points to a VGA
 UINT16 *VGA_BUFFER;
+
+#include "kbd.h"
 
 #endif
