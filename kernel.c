@@ -1,8 +1,6 @@
 #include "kernel.h"
-#include "kbd.h"
-#include "chars.h"
-#include "types.h"
 #include "utils.h"
+#include "chars.h"
 
 // Video buffer array index
 UINT32 VGA_INDEX;
@@ -19,7 +17,7 @@ int digit_ascii_codes[10] = {0x30, 0x31, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38, 0x3
      higher 4bits -- bg color
    8bit (AL) lower:
      ASCII character to print */
-static UINT16 VGA_ENTRY(unsigned char ch, UINT8 fg, UINT8 bg) {
+UINT16 VGA_ENTRY(unsigned char ch, UINT8 fg, UINT8 bg) {
     UINT16 ax = 0;
     UINT8 ah = 0, al = 0;
 

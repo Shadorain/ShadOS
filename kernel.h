@@ -10,6 +10,9 @@
 // Define null value
 #define NULL 0
 
+// Buffer that points to a VGA
+UINT16 *VGA_BUFFER;
+
 enum VGA_COLOR {
     BLACK,
     BLUE,
@@ -28,9 +31,6 @@ enum VGA_COLOR {
     YELLOW,
     WHITE,
 };
-
-// Buffer that points to a VGA
-UINT16 *VGA_BUFFER;
 
 #include "kbd.h"
 

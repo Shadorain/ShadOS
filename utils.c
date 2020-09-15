@@ -1,5 +1,12 @@
 #include "types.h"
 
+UINT32 strlen(const char* str) {    
+   UINT32 length = 0; 
+    while (str[length])
+        length++;
+    return length;
+}
+
 UINT32 digit_count(int num) {
     UINT32 count = 0;
     if(num==0)
@@ -27,11 +34,4 @@ void itoa(int num, char *number) {
         }
         number[dgcount] = '\0';
     }
-}
-
-UINT32 strlen(const char* str) {    
-   UINT32 length = 0; 
-    while (str[length])
-        length++;
-    return length;
 }

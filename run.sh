@@ -7,7 +7,7 @@ gcc -m32 -c utils.c -o utils.o -std=gnu99 -ffreestanding -O1 -Wall -Wextra
 gcc -m32 -c chars.c -o chars.o -std=gnu99 -ffreestanding -O1 -Wall -Wextra
 
 # Linking kernel with kernel.o and boot.o files
-ld -m elf_i386 -T linker.ld kernel.o boot.o -o ShadOS.bin -nostdlib
+ld -m elf_i386 -T linker.ld kernel.o utils.o chars.o boot.o -o ShadOS.bin -nostdlib
 
 # Check ShadOS.bin file is x86 multiboot file
 grub-file --is-x86-multiboot ShadOS.bin
