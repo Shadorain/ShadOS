@@ -1,14 +1,14 @@
 #include "types.h"
 
-UINT32 strlen(const char* str) {    
-   UINT32 length = 0; 
+uint32 strlen(const char* str) {    
+   uint32 length = 0; 
     while (str[length])
         length++;
     return length;
 }
 
-UINT32 digit_count(int num) {
-    UINT32 count = 0;
+uint32 digit_count(int num) {
+    uint32 count = 0;
     if(num==0)
         return 1;
     while(num > 0) {

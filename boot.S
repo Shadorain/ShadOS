@@ -39,7 +39,7 @@ _start:
     # get current stack pointer from ESP
     mov $stackTop, %esp
     # Call main kernel function
-    call KERNEL_MAIN
+    call kernel_main
     # clear interrupts
     cli
 

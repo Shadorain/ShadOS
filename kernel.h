@@ -9,19 +9,10 @@
 #define BUFSIZE 2200
 // Define null value
 #define NULL 0
-// Define screen width
-#define VGA_MAX_WIDTH 80
-// Define screen height
-#define VGA_MAX_HEIGHT 25
-// Define box borders
-#define BOX_SINGLEBORDER 1
-#define BOX_DOUBLEBORDER 2
-
-#define BOX_MAX_WIDTH 78
-#define BOX_MAX_HEIGHT 23
 
 // Buffer that points to a VGA
-UINT16 *VGA_BUFFER;
+uint16 *VGA_BUFFER;
+extern uint32 VGA_INDEX;
 
 enum VGA_COLOR {
     BLACK,
@@ -42,6 +33,16 @@ enum VGA_COLOR {
     WHITE,
 };
 
-#include "kbd.h"
+extern void clr_display(uint8, uint8);
+extern void print_newline();
+extern void printc(char);
+extern void printf(char *);
+extern void printf_color(char *, uint8, uint8);
+extern void printi(int);
+extern uint8 inb(uint16);
+extern void outb(uint16, uint8);
+extern byte get_input_keycode();
+extern void sleep(uint32);
+extern void gotoxy(uint16, uint16);
 
 #endif
