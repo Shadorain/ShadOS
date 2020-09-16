@@ -56,6 +56,21 @@ void printc(char ch) {
     VGA_INDEX++;
 }
 
+void printf_color(char *str, UINT8 fg, UINT8 bg) {
+    UINT32 i = 0;
+    UINT8 fc, bc;
+    fc = g_fg;
+    bc = g_bg;
+    g_fg = fg;
+    g_bg = bg;
+    while (str[i]) {
+        printc(str[i]);
+        i++;
+    }
+    g_fg = fc;
+    g_bg = bc;
+}
+
 // Print string by using printc
 void printf(char *str) {
     UINT32 i = 0;
@@ -130,15 +145,181 @@ void test_input() {
     } while (ch > 0);
 }
 
+// -- GUI -- //
+UINT16 GET_BOX_DRAWC (UINT8 chn, UINT8 fg, UINT8 bg) {
+    UINT16 ax = 0;
+    UINT8 ah = 0;
+
+    ah = bg;
+    ah <<= 4;
+    ah |= fg;
+    ax = ah;
+    ax <<= 8;
+    ax |= chn;
+
+    return ax;
+}
+
+void GOTOXY (UINT16 x, UINT16 y) {
+    VGA_INDEX = 80*y;
+    VGA_INDEX += x;
+}
+
+void DRAW_GENERIC_BOX (UINT16 x, UINT16 y, UINT16 w, UINT16 h, UINT8 fg, UINT8 bg,
+               UINT8 topLeft_ch, UINT8 topBottom_ch, UINT8 topRight_ch, UINT8 leftRightEdge_ch, 
+               UINT8 bottomLeft_ch, UINT8 bottomRight_ch) {
+    UINT32 i;
+
+    // Increase VGA_INDEX to x and y loc
+    VGA_INDEX = 90*y;
+    VGA_INDEX += x;
+
+    // Top-left box char
+    VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(topLeft_ch, fg, bg);
+    VGA_INDEX++;
+    // top chars
+    for (i = 0; i < w; i++) {
+        VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(topBottom_ch, fg, bg);
+        VGA_INDEX++;
+    }
+
+    // Top-right box char
+    VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(topRight_ch, fg, bg);
+
+    // Increase y for drawing next line
+    y++;
+    // goto \n
+    VGA_INDEX = 80*y;
+    VGA_INDEX += x;
+
+    // left & right sides
+    for (i = 0; i < h; i++) {
+        // left edge char
+        VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(leftRightEdge_ch, fg, bg);
+        VGA_INDEX++;
+        // Increase VGA_INDEX to width
+        VGA_INDEX += w;
+        // Right side chara
+        VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(leftRightEdge_ch, fg, bg);
+        // Go to \n
+        y++;
+        VGA_INDEX = 80*y;
+        VGA_INDEX += x;
+    }
+    // Bottom-left char
+    VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(bottomLeft_ch, fg, bg);
+    VGA_INDEX++;
+    // Bottom chars
+    for (i = 0; i < w; i++) {
+        VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(topBottom_ch, fg, bg);
+        VGA_INDEX++;
+    }
+    // Bottom-right char
+    VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(bottomRight_ch, fg, bg);
+    VGA_INDEX = 0;
+}
+
+void DRAW_BOX (UINT8 boxType, UINT16 x, UINT16 y, UINT16 w, UINT16 h, UINT8 fg, UINT8 bg) {
+    switch (boxType) {
+        case BOX_SINGLEBORDER :
+            DRAW_GENERIC_BOX(x, y, w, h, fg, bg, 218, 196, 191, 179, 192, 217);
+            break;
+        case BOX_DOUBLEBORDER :
+            DRAW_GENERIC_BOX(x, y, w, h, fg, bg, 201, 205, 187, 186, 200, 188);
+            break;
+    }
+}
+
+void FILL_BOX (UINT8 ch, UINT16 x, UINT16 y, UINT16 w, UINT16 h, UINT8 col) {
+    UINT32 i,j;
+
+    for(i = 0; i < h; i++) {
+        // Increase VGA_INDEX to x & y loc
+        VGA_INDEX = 80*y;
+        VGA_INDEX += x;
+
+        for (j = 0; j < w; j++) {
+            VGA_BUFFER[VGA_INDEX] = GET_BOX_DRAWC(ch, 0, col);
+            VGA_INDEX++;
+        }
+        y++;
+    }
+}
+
+
+// -- ASCII -- //
+void printc_ascii (UINT8 fg, UINT8 bg) {
+    UINT32 i;
+    UINT16 ax = 0;
+    UINT16 ah = 0;
+
+    for (i = 1; i < 254; i++) {
+        ax = 0;
+        ah = bg;
+        ah <<= 4;
+        ah |= fg;
+        ax = ah;
+        ax <<= 8;
+        ax |= i;
+
+        printi(i);
+        printc(' ');
+        printc(ax);
+        printc(' ');
+    }
+}
+
+
+// -- Main -- //
 // Main function which is called in boot.S
 void KERNEL_MAIN() {
     // Init VGA with fg & bg
     INIT_VGA(MAGENTA, BLACK);
 
-    // Can print strings, chars, and ints with new functions
-    printf("Hello Shadoknight!");
-    print_newline();
-    printf("Hit any key ...");
-    print_newline();
+    // - DOS Box - {{{
+    FILL_BOX(0, 0, 0, BOX_MAX_WIDTH - 8, 14, MAGENTA);
+    DRAW_BOX(BOX_DOUBLEBORDER, 0, 0, BOX_MAX_WIDTH - 10, 12, WHITE, MAGENTA);
+
+    GOTOXY(2, 1);
+    printf_color("Welcome to SHADOS-x86 v1.0.3", BRIGHT_GREEN, MAGENTA);
+    GOTOXY(2, 3);
+    printf_color("Short introduction for new knights: ", WHITE, MAGENTA);
+    GOTOXY(41, 3);
+    printf_color("INTRO", BLUE, MAGENTA);
+    GOTOXY(2, 4);
+    printf_color("For supported shell commands: ", WHITE, MAGENTA);
+    GOTOXY(32, 4);
+    printf_color("HELP", YELLOW, MAGENTA);
+    GOTOXY(2, 11);
+    printf_color("The ShadoHub", BRIGHT_GREEN, MAGENTA);
+    GOTOXY(20, 11);
+    printf_color("https://Shadorian.github.io", YELLOW, MAGENTA);
+    GOTOXY(0, 14);
+    printf_color("%> ", WHITE, BLACK);
+    // - }}}
+    // - Text test - {{{
+    /* printf("Hello Shadoknight!"); */
+    /* print_newline(); */
+    /* printf("Hit any key ..."); */
+    /* print_newline(); */
     test_input();
+    // - }}}
+    // - GUI Show off - // {{{
+    /* const char *str = "Boxes"; */
+
+    /* GOTOXY((VGA_MAX_WIDTH/2)-strlen(str), 1); */
+    /* printf_color("Shadobox", BRIGHT_BLUE, BLACK); */
+
+    /* DRAW_BOX(BOX_DOUBLEBORDER, 0, 0, BOX_MAX_WIDTH, BOX_MAX_HEIGHT, BRIGHT_GREEN, BLACK); */
+
+    /* DRAW_BOX(BOX_SINGLEBORDER, 5, 3, 20, 5, GREEN, BLACK); */
+    /* GOTOXY(10,6); */
+    /* printf_color("Hello Shado", BRIGHT_CYAN, BLACK); */
+
+    /* FILL_BOX(NULL, 36, 5, 30, 10, RED); */
+
+    /* FILL_BOX(1, 6, 16, 30, 4, BRIGHT_RED); */
+    /* DRAW_BOX(BOX_DOUBLEBORDER, 6, 16, 28, 3, BLUE, GREEN); */
+    // - }}}
+    /* printc_ascii(BRIGHT_MAGENTA, BLACK); */
 }

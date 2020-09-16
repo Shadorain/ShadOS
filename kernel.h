@@ -9,6 +9,16 @@
 #define BUFSIZE 2200
 // Define null value
 #define NULL 0
+// Define screen width
+#define VGA_MAX_WIDTH 80
+// Define screen height
+#define VGA_MAX_HEIGHT 25
+// Define box borders
+#define BOX_SINGLEBORDER 1
+#define BOX_DOUBLEBORDER 2
+
+#define BOX_MAX_WIDTH 78
+#define BOX_MAX_HEIGHT 23
 
 // Buffer that points to a VGA
 UINT16 *VGA_BUFFER;
