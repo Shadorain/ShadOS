@@ -4,7 +4,7 @@
 #include "kbd.h"
 #include "ttt.h"
 
-uint32 VGA_INDEX; // Video buffer array index
+uint32 vga_index; // video buffer array index
 static uint32 nl_index = 1; // Newline counter
 uint8 g_fg = WHITE, g_bg = BLUE; // fg & bg default values
 int digit_ascii_codes[10] = {0x30, 0x31, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39}; // ASCII digit codes for integers
