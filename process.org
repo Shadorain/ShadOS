@@ -1,0 +1,201 @@
+#+TITLE: General Linux Process
+
+* Boot Process
+** POST (Power-On Self Test)
+- Series of Diagnostics
+- Locates bootable device in order that firmware is configured to
+** Master Boot Record
++ Legacy BIOS
+  + bios checks bootable device for boot signature
+    - #IMPORTANT: =Magic Number=
+    + In a boot sector (sector #0)
+      - contains byte sequence 0x55, 0xAA at byte offsets 510 and 511
+    + When found it is loaded into memory at 0x0000:0x7c00
+      - (segment 0, address 0x7c00)
+    + Some BIOS standards load to 0x7c0:0x0000
+      - (segment 0x07c0, offset 0)
+    - #IMPORTANT: =Good practice to enforce CS:IP (code segment : instruction pointer)=
+  + Execution transferred to freshly loaded boot record
+    - Floppy disk: all 512 bytes of boot record (save last two signature bytes) may contain exec code
+    + Hard Drive: the MBR holds exec code at offset 0x0000-0x01bd
+      + followed by table entries for the four primary partitions
+        - 16B per entry (0x01be-0x01fd)
+        - 2B signature (0x01fe-0x01ff)
+** Early Environment
+- Extremely implementation defined (particular BIOS)
+- #QUOTE: "Never make any assumptions on the contents of registers: They might be initialized to 0, but they might contain a spurious value just as well."
+- Only thing certain: ~DL register~ holds drive code from where boot code was loaded
+- CPU currently in =Real Mode=
+  - [[https://wiki.osdev.org/Real_Mode][Real Mode]]
+** Kernel
++ Bootloader loads kernel into memory and passes control to it
+  - for example: Grub loads kernel and initramfs (if there)
+** Loading
+*** Hard Drive
+- Only 446B available for boot record (MBR)
+*** Has to be done before kernel image can run:
+- #REQUIRED for successful boot process
+1. determine partition to boot from (look for active part or present user with selection of installed OS)
+2. determine where kernel image is located on boot part (interpreting file sys or loading image from fixed position)
+3. load kernel img into mem (requires basic disk I/O)
+4. enable protected mode
+5. prepare runtime environment for kernel (e.g. set up stack space)
+This all has to be done before calling =kmain()=
++ All has to be done in ASM
+  - GCC generates protected mode executables only
+  - so early env code cant be done in C
+**** Approaches to the problem
+1. *Geek Loading*: squeeze everything from list into boot record.
+   - next to impossible
+   - doesn't leave room for any special-case handling or error messages
+2. *One-stage loading*: write a stub program for making switch, and link in front of kernel img.
+   - Boot record loads kern img (below 1mb mem mark, since in Real Mode: upper mem limit)
+   - jumps into stub
+   - stub makes switch to Protected mode and runtime prep
+   - jumps into kernel properly
+3. *Two-stage loading*: Write separate stub prog which is loaded below 1mb mem mark, and does everything in list
+**** Tradition Method
+- MBR realocates itself to 0x0000:0x0600
+- determines active partition from partition table
++ loads first sector of partition ("partition boot record") to 0x0000:0x7c00 then jumps to that addr
+  - known as "chain loading"
+  - If the boot record is to be capable of dual booting, it needs to have this available
+*** Existing bootloaders
+**** GRUB
+- two-stage
+- provides a menu with chainloading ability
+- inits early env to well-defined state (Protected Mode and other BIOS info)
+- can load generic execs as kern imgs (instead of flat binaries)
+- supports kernel modules
+- supports various file systems
+*** Boot variants (possible methods)
+1. take an unused partition and load stage 2 "raw"
+2. place stage 2 between MBR and start of first partition
+3. Write kernel file, then use tool to detect sectors (or clusters) (Lilo did this)
+   - then let stage 1 load sectors from list
+4. DOS and Windows: create empty filesystem, place kernel in first file, shell in second in empty rootdir
+   - loader simply loads first entry in rootdir -> then second
+5. Floppy Linux: first sector ("boot") loaded second stage in "raw" mode (without fs)
+   - second stage setup in sectors behind "boot"
+   - second setup the system (video mode, memory map, etc.)
+   - then loaded real kernel img packed in tgz/bz
+6. Nuni: switched to protected mode and loaded a file all in one boot sector
+* Kernel
+** Interrupts
++ *Programmable Interrupt Controller (PIC)*: manages hardware interrupts and sends them to appropriate system interrupt.
++ *Interrupt Request (IRQ)*: when certain actions are performed on a hardware device it sends pulse along specific interrupt line to PIC chip.
+  - PIC then translates IRQ into system interrupt
+  - sends message to interrupt CPU from what it is doing
+  - kernel's job to handle the rest
++ Without a PIC, would have to poll all devices in system to see if any events have occurred (in a while true loop lol)
+*** Keyboard (e.g.)
++ I/O ports: =0x60= and =0x64=
+  - =0x60= gives data (pressed key)
+  - =0x64= gives status
+  - have to be read at specific times though
++ When key is pressed, keyboard gives signal to PIC along interrupt line IRQ1
++ PIC has an offset value stored during init of it
+  - adds input line num to this offset, forming the *Interrupt number*
++ Proc looks up certain data struct called *Interrupt Descriptor Table (IDT)*
+  - gives interrupt handler address corresponding to interrupt number
++ The code at this address is then run, which handles the event.
+**** Code it
++ Modern x86 systems have 2 PIC chips
+  - #IMPORTANT: 8 input lines each
++ PIC1:
+  - IRQ0 - IRQ7
+  - Command: =0x20=
+  - Data: =0x21=
++ PIC2:
+  - IRQ8 - IRQ15
+  - Command: =0xA0=
+  - Data: =0xA1=
+#+begin_src asm
+read_port:
+    mov edx, [esp + 4]
+    in al, dx
+    ret
+
+write_port:
+    mov edx, [esp + 4]
+    mov al, [esp + 4 + 4]
+    out dx, al
+    ret
+#+end_src
+**** KB handler
++ Signal *EOI* (End of Interrupt acknowledgement) with =write_port(0x20, 0x20)=
+  + without this, PIC wont allow new interrupt requests
+  + have to read 2 ports here
+    + cmd/status: =0x64=
+      - read first to check status
+        =status = read_port(KEYBOARD_STATUS_PORT); if (status & 0x01) { ... }=
+      - if lowest bit == 0
+        - buffer is empty and no data is to be read
+    + data: =0x60=
+      - Gives keycode of pressed key
+      - each corresponds to each key on kb
+      - use a simple char array to map keycode to corresponding char
+      - This char then printed on screen using VGA method
+*** *Initialization Command Words (ICW)*: initialization 8-bit command words
+In protected mode, the first cmd need to give two PICs is init command: ICW1
+***** *ICW1*
+- =0x11=
+- First init command
+- makes PIC waits for 3 more init words on data port
+***** *ICW2*: It's vector offset
+- Second init command
+- Written to data ports of each PIC
+- sets PIC's offset value
+- Value to which input line num to form interrupt num
+***** *ICW3*: How PICs wired master/slaves
+- PICs allow cascading of uotputs to inputs between each other.
+- Each bit represents cascading status for corresponding IRQ
+- HERE: won't use this, will just set all to zeroes
+***** *ICW4*: Gives additional info about env
+- sets additional env params
+- HERE: will just set lowermost bit to tell PICs we are running in 80x86 mode
+*** *Interrupt Mask Register (IMR)*: an 8bit register in each PIC
++ Stores bitmap of IRQ lines going into PIC
++ PIC ignores request when a bit is set
+  - can enable and disable nIRQ line by making the value of n bit in IMR as 0 and 1 respectively
++ Reading from data port returns value in IMR register
+  - writing to it sets reg
++ HERE: after init PICs, set all bits to 1 which disables all IRQ lines.
+  + later enable line corresponding to kb interrupt
+  + if IRQ lines are enabled
+    - PICs can recieve signals via IRQ lines, convert them to interrupt nums by adding with offset
+    - Populate IDT such that interrupt number for kb is mapped to addr of kb handler func
+  + #IMPORTANT: KB uses IRQ1 (input line 1 of PIC1)
+    - PIC1 init at offset =0x20=
+    - To find interrupt num, =1 + 0x20=
+    - KB handler addr has to be mapped against interrupt =0x21= in IDT
+  + Each IDT entry
+    - consists of 64 bits
+    - IDT entry for interrupt: do not store entire addr of handler fun together
+      - split into 2 parts of 16 bits
+        - low bits stored in first 16 bits of IDT entry
+        - high bits stored in last 16 bits of IDT entry
+      - done to maintain 286 compatibility
+  + Have to set type in IDT entry
+    - done to trap an interrupt
+    - need to give kernel code offset
+  + *[[https://en.wikipedia.org/wiki/Global_Descriptor_Table][GDT]] (Global Descriptor Table)*:
+    - GRUB sets one up automatically (will have to do this in my bootloader...)
+    - Each GDT entry is 8 bytes long
+    - kernel code descriptor is second segment
+      - offset: =0x08=
+    - Interrupt gate: =0x8e=
+    - Remaining 8 bits in middle are filled with 0's
+    - Now have filled IDT entry corresponding to kb interrupt
+  + Have to tell CPU where IDT is located
+    + =lidt= instruct takes one operand
+      - must be pointer to descriptor struct that describes IDT
+      - Descriptor: contains size of IDT in bytes and it's addr
+      #+begin_src asm
+        load_idt:
+            mov edx, [esp + 4]
+            lidt [edx]
+            sti
+            ret
+      #+end_src
+*** TIP #LINK [[https://stanislavs.org/helppc/8259.html][8259 Programmable Interrupt Controller (PIC)]]
