@@ -132,7 +132,7 @@ write_port:
       - if lowest bit == 0
         - buffer is empty and no data is to be read
     + data: =0x60=
-      - Gives keycode of pressed key
+      - Gives key code of pressed key
       - each corresponds to each key on kb
       - use a simple char array to map keycode to corresponding char
       - This char then printed on screen using VGA method
@@ -199,3 +199,175 @@ In protected mode, the first cmd need to give two PICs is init command: ICW1
             ret
       #+end_src
 *** TIP #LINK [[https://stanislavs.org/helppc/8259.html][8259 Programmable Interrupt Controller (PIC)]]
+** [[http://www.osdever.net/tutorials/view/irqs][IRQ List]]
+*** IRQ Lines
+IRQ lines are actual physical connections in the computer
+1) When hardware device (e.g. adapter card) activates line, it's detected by PIC ->
+2) Pic activates interrupt pin on processor ->
+3) proc responds by stopping what it's doing, asks PIC which interrupt should be execed ->
+4) depending on interrupt line PIC tells proc which interrupt to use ->
+5) proc gets vector for specific interrupt by looking in interrupt vector table in mem ->
+6) proc then starts exec at addr pointed to by vector ->
+7) when process finishes, proc resumes to where it was pre interrupt.
+- #IMPORTANT Each line has a designated interrupt
+**** Computer Specificatio ns
++ IBM PC, PC/XT
+  - =8= IRQ lines (IRQ0 - IRQ7)
++ IBM PC/AT, non-IBM 386/ATs
+  - =16= IRQ lines (IRQ0 - IRQ15)
+**** List of all and descriptions
+| line  | interrupt | function                                       |
+|-------+-----------+------------------------------------------------|
+| IRQ0  |        08 | sys timer                                      |
+| IRQ1  |        09 | keyboard                                       |
+| *IRQ2 |        0A | PC/XT: EGA vertical retrace or maybe available |
+|       |           | PC/AT:                                         |
+| *IRQ3 |        0B | COM2 or maybe available                        |
+| IRQ4  |        0C | COM1                                           |
+| *IRQ5 |        0D | PC/XT: HDD                                     |
+|       |           | PC/AT: LPT2 or maybe available                 |
+| IRQ6  |        0E | floppy disk drive                              |
+| IRQ7  |        0F | LPT1                                           |
+| IRQ8  |        70 | PC/AT: CMOS Real Time Clock                    |
+| *IRQ9 |        71 | PC/AT:                                         |
+| IRQ10 |        72 | PC/AT: prob avail                              |
+| IRQ11 |        73 | PC/AT: prob avail                              |
+| IRQ12 |        74 | PC/AT: prob avail                              |
+|       |           | PS/2: mouse                                    |
+| IRQ13 |        75 | PC/AT: numeric coproc                          |
+| IRQ14 |        76 | PC/AT: HDD                                     |
+| IRQ15 |        77 | PC/AT: prob avail                              |
+***** IRQ2
++ no predetermined func
++ commonly used by EGA & VGA adaptors, net adaptors, and bus mouse adaptors
+  - as long as no conflict it can be used for anything
++ ~PC/AT~: IRQ9 considered same as IRQ2
+  - if one adaptor uses IRQ2 and a diff uses IRQ9: =conflict=
+****** EGA
+- Some cards have a "snow" issue that displays on the screen, this is why the IRQ2 is setup for EGA displays
+- Sends an interrupt each time there is a vertical screen retrace which fixes some of the snow problems
+[[http://www.osdever.net/tutorials/view/irqs][More Info]]
+****** VGA
+- Some cards have a =jumper= to 1/0 the IRQ2 line
+- snow issue is highly unlikely therefore having a line for VGA isnt necessary
+- #QUOTE Most software that uses the IRQ2 can automatically detect it and adjust its operations to work with or without it
+***** IRQ3
+- If computer only has 1 serial port then this is available
+- if comp has 2 but only one active, possible to disable IRQ3 line of COM2
+***** IRQ5
++ ~PC/XT~: reserved for HDD
++ ~PC/AT~: only reserved for second parallel printer port (=LPT2=)
+  - Most ~PC/ATs~ only have 1 (=LPT1=)
+  - So usually this is available
+***** IRQ2 with IRQ9
+- ~PC/AT~ & ~386/AT~: IRQ2 and IRQ9 lines are mysterious
+- #QUOTE "A comparison of the pinout diagrams for the adapter interface of the PC/XT and PC/AT shows that the IRQ9 terminal on the PC/AT is in the same location as the IRQ2 terminal on the PC/XT. Furthermore, the PC/AT does not even have an IRQ2 terminal. If a card is designed to work in the PC/XT, it has an 8 bit interface and it may use the IRQ2 line. If the card is plugged into a PC/XT system and if it activates its IRQ2 line, then it will activate the IRQ2 line on the computer mother board and that will cause the computer to execute interrupt 0A. If the same card is plugged into a PC/AT and if it activates (what it thinks is) the IRQ2 line, then it will actually be activating the IRQ9 line on the computer motherboard (the IRQ2 terminal of the card contacts the IRQ9 terminal of the interface connector) and that will cause the computer to execute interrupt 71. The procedure for interrupt 71 is set up by the BIOS and it includes a software call to interrupt 0A (the interrupt for IRQ2)."
+- #SIMPLIFIED #QUOTE "In other words, the PC/AT computer uses hardware to redirect the IRQ2 line of an adaptor card onto the IRQ9 line of the motherboard, and it uses software to redirect interrupt 71 (the procedure for IRQ9) back to interrupt 0A (the procedure for IRQ2). Thus the real IRQ2 line on the motherboard is uninvolved, except for an indirect way (cascading) which is discussed below. You can install an 8 bit card in a PC/AT computer and enable IRQ2. It is possible to run software which is specifically designed to work with that card (it expects to see interrupt 0A executed every time the card activates the IRQ2 line) and it should work (provided that there are no conflicts with other adaptor cards)."
+***** Printing without an IRQ line
+- Disabling IRQ5 (LPT2) and IRQ7 (LPT1) frees us 2 lines for better use.
+- Parallel printer port needs IRQ line only if performing true bidirectional data transfer
+- If disabled, software can still send data to printer to be printed
+- #QUOTE "The parallel interface still has status lines which enables your programs to avoid overflowing the printers input buffer and detect basic errors such as "Out of Paper" and "Device not Ready"."
+***** Sharing an IRQ line
+- Also possible for more than one dev to share IRQ line
+- E.g: have scanner and modem both use IRQ3
+  - as long as dont try to run scanner prog and modem prog at same time, could work
+* LDD Notes (Linux Device Drivers 3)
+** Chapter 1 : Introduction
+- Role of a driver is /providing mechanism, not policy/
+- #IMPORTANT: when writing code:
+  - be as /policy/ free as possible
+  - mechanism always over policy for drivers atleast
+  - let the user determine how they use it, dont define that for them
+- #QUOTE "The driver should dealwith making the hardware available, leaving all the issues abouthowto use the hard-ware to the applications."
+*** Splitting the Kernel (Pg. 4)
+**** Process Management
+- kern is in charge of creating and destroying processes and handling their connection (I/O)
+- comm among diff processes:
+  - signals, pipes, interprocess comm primitives
+- Scheduler: controls how procs share CPU
+- implements abstraction of several procs on top of single CPU or a few
+**** Memory Management
+- Critical policy for sys performance
+- kernel builds up virtual addressing space for all procs on top of limited avail resources
+- kern interact with mem-mngmnt subsystem through set of func calls, ranging from malloc/free to much more complex
+**** Filesystems
+- Everything in UNIX model treated as a file
+- Kernel builds structured fs on top of unstructured hardware
+  - resulting file abstraction is heavily used throughout whole sys
+**** Device Control
+- every sys op eventually maps to a physical device
+  - exceptions: processor, memory, and few other entities
+  - any and all device control ops are performed by code specific to device being addressed (driver)
+- kernel must have a driver embedded in it for every peripheral present on system
+**** Networking
+- managed by OS since most net ops aren't specific to a process: incoming packets are asynchronous
+- each packet must be: collected, identified, and dispatched before a process touches it
+- system is in charge of delivering data packets across program and net interfaces
+- must control exec of programs according to their net activity
+- all routing and addr resolution issues are implemented within kernel
+*** Loadable Modules (Pg. 5)
++ Linux has ability to extend at runtime: set of features offered by kernel
+  - all while kern is running
++ Called: Module
+  - Linux kernel offers support for quite a few different types (classes) of modules
+    - device drivers are one of these
+  - each module is made up of obj code (not linked into complete exec)
+    - can be dynamically linked to running kernel by =insmod= and unlinked by =rmmod= (modprobe?)
+  - a module is said to belong to a specific class according to functionality it offers
+*** Classes of Devices and Modules (Pg. 5)
+ #IMPORTANT: Linux way of looking at devices distinguishes between 3 fundamental device types
+   Each module typically implements one of these three types, thus is classifiable as a:
+   - char module, block module, or network module
+ #TIP: "Good programmers, nonetheless, usually create a different module for each new functionality theyimplement, because decomposition is a key element of scalability and extendability"
+ [[~/Pictures/Screenshots/2020-12-17_10-07.png]]
+**** /Character devices/
++ can be accessed as stream of bytes (like a file)
++ char driver: in charge of implementing this behavior
+  - typically: /open, close, read, write/ system calls
++ examples:
+  - text console (/dev/console) and serial ports (/dev/ttyS0)
++ accessed by means of filesystem nodes, such as /dev/tty1 and /dev/lp0
++ only relevant difference between char dev and file is you can always move back and forth in the regular file
+  - most char devices are just data channels which can only be accessed sequentially
++ #SIDE: There exist,nonetheless, char devices that look like data areas, and you can move back andforth in them; for instance, this usually applies to frame grabbers, where theapplications can access the whole acquired image using /mmap/ or /lseek/.
+**** /Block devices/
++ accessed by fs nodes in /dev
++ *Block device*: a device (e.g. a disk) that can host a filesystem
+  + UNIX: block device can only handle I/O ops that transfer 1> blocks which usually are 512B in len
+  + Linux: allows application to read and write a block device like a char device
+    - permits transfer of any num of bytes at a time
+    - block and char devs only differ in the way data is managed internally by kernel
+      - thus in kernel/driver software interface
+  + each block dev is accessed through a fs nodes (like a char dev)
+  + have completely different interface to kernel than char drivers
+**** /Network interfaces/
+All net transactions are made through interfaces
+- a device able to exchange data with other hosts
+- /interface/: usually is a hardware dev, but might also be pure software dev (loopback interface)
+- net interface is in charge of sending and receiving packets, driven by net subsys of kernel, without knowing how individual transactions map to actual packets being transmitted
+- Most net conns are stream oriented, but net devs are designed around transmission and receipt of packets
+- net driver knows nothing bout indiv conns, only handles packets (mechanism > policy)
+Since it isnt a stream-oriented dev, a net interface isnt easily mapped to a fs node
+ - because of this comm between kern and net dev driver is completely diff from char and block drivers
+ - instead of /read&write/, kernel calls packet transmission related functions
+*** Security Issues (Pg. 8)
+ #THOUGHT: Any security check in the system is enforced by kernel code. If the kernel has secu-rity holes, then the system as a whole has holes.
+ + Only authorized user can load modules (assuming root):
+   - syscall: /init_module/ checks if invoking process is authorized to load a module into kernel
+ + #TIP: driver writers should always avoid encoding security policy in their code.
+   + sec is a policy issue that is often best handled at higher levels within the kern
+     - under control of sys admin.
+ + #QUOTE: "As a device driver writer, you should be aware of situations in which some types ofdevice access could adversely affect the system as a whole and should provide ade-quate controls. For example, device operations that affect global resources (such assetting an interrupt line), which could damage the hardware (loading firmware, forexample), or that could affect other users (such as setting a default block size on atape drive), are usually only available to sufficiently privileged users, and this checkmust be made in the driver itself."
+ + #TIP: Be careful with uninitialized memory; any memory obtained from thekernel should be zeroed or otherwise initialized before being made available to a userprocess or device.
+ + #NODE: Note that the Linux kernel can be compiled to have no module support whatsoever,thus closing any module-related security holes. In this case, of course, all neededdrivers must be built directly into the kernel itself. It is also possible, with 2.2 andlater kernels, to disable the loading of kernel modules after system boot via the capa-bility mechanism.
+*** Version Numbering (Pg. 10)
+- /every/ software pkg used on Linux has its own release number, often interdependencies across them:
+  - need particular vers of one pkg to run particular vers of another
+- *Even numbered kernel versions*: stable, intended for general distribution
+- *Odd numbered kernel versions*: development snapshots, quite ephemeral
+*** License Terms (Pg. 11)
+Linux is licensed under =Version 2= of the =GNU General Public License (GPL)=
+- anyone can redistribute, even sell, a product covered by GPL as long as recipient has access to the source and is able to exercise the same rights.
+** Chapter 2 : Building and Running Modules (pg. 15)
+*** Setting up Test System
