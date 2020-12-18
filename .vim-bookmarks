@@ -1,0 +1,3 @@
+let l:bm_file_version = 1
+let l:bm_sessions = {'default': {'/home/shadow/ShadOS/shado_modules/hello_world.c': [{'sign_idx': 9501, 'line_nr': 8, 'content': '', 'annotation': 'kernel''s printf'},{'sign_idx': 9500, 'line_nr': 5, 'content': 'MODULE_LICENSE("Dual BSD/GPL");', 'annotation': 'Kernel will complain without this'},{'sign_idx': 9502, 'line_nr': 13, 'content': '', 'annotation': 'KERN_ALERT is the priority of the message, will be sure to be logged in a visible spot'},],}}
+let l:bm_current_session = 'default'
